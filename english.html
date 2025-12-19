@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>英语口语测试原型</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            text-align: center;
+            background-color: #f0f8ff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+            width: 90%;
+            max-width: 350px;
+        }
+        .robot {
+            font-size: 80px;
+            margin-bottom: 10px;
+            display: block;
+        }
+        h1 {
+            font-size: 50px;
+            color: #333;
+            margin: 10px 0;
+        }
+        p {
+            color: #666;
+            margin-bottom: 20px;
+        }
+        .btn-group {
+            display: flex;
+            justify-content: space-around;
+        }
+        button {
+            padding: 15px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .btn-listen {
+            background-color: #4facfe;
+            color: white;
+        }
+        .btn-speak {
+            background-color: #ff9a9e;
+            color: white;
+        }
+        button:active {
+            transform: scale(0.95);
+        }
+        #status {
+            margin-top: 20px;
+            font-size: 18px;
+            font-weight: bold;
+            min-height: 1.5em;
+        }
+        .status-listening { color: blue; }
+        .status-correct { color: green; }
+        .status-wrong { color: red; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <span class="robot">🤖</span>
+        <h1 id="word-display">Hello</h1>
+        <p>你好</p>
+
+        <div class="btn-group">
+            <button class="btn-listen" onclick="robotSpeak()">👂 听示范 (2遍)</button>
+            <button class="btn-speak" onclick="startListening()">🎤 我来读</button>
+        </div>
+
+        <div id="status">准备就绪...</div>
+    </div>
+
+    <script>
+        // 当前要测试的单词
+        const currentWord = "Hello";
+        const statusBox = document.getElementById('status');
+
+        // --- 功能1：让浏览器说话 (TTS) ---
+        function robotSpeak() {
+            if (!window.speechSynthesis) {
+                alert("你的浏览器不支持朗读功能，请换Chrome试试。");
+                return;
+            }
+
+            // 创建一个“话语”对象
+            const utterance = new SpeechSynthesisUtterance(currentWord);
+            utterance.lang = 'en-US'; // 美式发音
+            utterance.rate = 0.8;     // 语速稍微慢一点，适合小朋友
+
+            statusBox.innerText = "🤖 正在朗读...";
+            
+            // 读第一遍
+            window.speechSynthesis.speak(utterance);
+            
+            // 读第二遍 (中间稍微停顿一下)
+            // 实际上连续调用speak，浏览器会自动排队播放
+            setTimeout(() => {
+                 window.speechSynthesis.speak(utterance);
+            }, 1000); // 间隔1秒再读一次
+        }
+
+        // --- 功能2：听用户说话 (STT) ---
+        // 兼容性处理：Chrome用webkitSpeechRecognition
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+        function startListening() {
+            if (!SpeechRecognition) {
+                statusBox.innerText = "⚠️ 浏览器不支持语音识别";
+                alert("抱歉，你的浏览器不支持语音识别。请使用电脑版 Chrome 或安卓手机 Chrome。");
+                return;
+            }
+
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'en-US'; // 识别英语
+            recognition.interimResults = false; // 不需要中间结果，只要最终结果
+            recognition.maxAlternatives = 1;
+
+            recognition.start();
+
+            // 开始听的时候
+            recognition.onstart = function() {
+                statusBox.innerText = "🎤 正在听，请大声读...";
+                statusBox.className = "status-listening";
+            };
+
+            // 听到了结果
+            recognition.onresult = function(event) {
+                const heardWord = event.results[0][0].transcript;
+                statusBox.innerText = "我听到了: " + heardWord;
+                
+                // 去掉标点和空格，转成小写来比较
+                const cleanHeard = heardWord.trim().toLowerCase().replace(/[^a-zA-Z]/g, "");
+                const cleanTarget = currentWord.toLowerCase();
+
+                if (cleanHeard === cleanTarget) {
+                    statusBox.innerText = "🎉 读对啦！(" + heardWord + ")";
+                    statusBox.className = "status-correct";
+                    // 这里以后可以加撒花
+                } else {
+                    statusBox.innerText = "❌ 没听清，是 " + heardWord + " 吗？再试一次！";
+                    statusBox.className = "status-wrong";
+                }
+            };
+
+            // 听写结束或出错
+            recognition.onerror = function(event) {
+                statusBox.innerText = "⚠️ 出错了: " + event.error;
+            };
+            
+            recognition.onspeechend = function() {
+                 // 停止说话后，稍微等一会再显示状态，避免闪烁
+            }
+        }
+    </script>
+</body>
+</html>
