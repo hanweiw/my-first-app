@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>报童决策实验 (AI增强版)</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; background-color: #f0f2f5; padding: 20px; color: #333; }
+        .container { max-width: 1000px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+        h1, h2 { text-align: center; color: #2c3e50; }
+        .hidden { display: none !important; }
+        
+        /* 布局 */
+        .game-layout { display: flex; gap: 20px; }
+        @media (max-width: 768px) { .game-layout { flex-direction: column-reverse; } }
+        
+        .sidebar { flex: 1; background: #f8f9fa; padding: 20px; border-radius: 10px; border: 1px solid #e9ecef; max-height: 600px; overflow-y: auto;}
+        .main-area { flex: 2; padding: 10px; }
+
+        /* 参数面板 */
+        .params-box { background: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 5px solid #2196f3; }
+        .params-box p { margin: 5px 0; font-weight: bold; }
+        
+        /* 数据列表 */
+        .history-list { list-style: none; padding: 0; font-size: 14px; color: #666; max-height: 300px; overflow-y: auto; }
+        .history-list li { padding: 6px 0; border-bottom: 1px dashed #eee; display: flex; justify-content: space-between; }
+        .sold-out { color: red; font-weight: bold; font-size: 12px; background: #ffe6e6; padding: 2px 4px; border-radius: 4px; }
+
+        /* 核心操作区 */
+        .round-info { font-size: 24px; font-weight: bold; color: #d35400; margin-bottom: 20px; text-align: center; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        input[type=number] { padding: 12px; width: 100%; border: 2px solid #ddd; border-radius: 8px; font-size: 18px; box-sizing: border-box; margin: 10px 0; }
+        
+        /* 按钮 */
+        .btn { padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; width: 100%; transition: 0.2s; margin-bottom: 15px; }
+        .btn-start { background: #27ae60; color: white; margin-top: 20px; font-size: 20px; padding: 15px 40px; }
+        .btn-ai { background: #8e44ad; color: white; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .btn-submit { background: #c0392b; color: white; font-size: 18px; padding: 15px; margin-top: 10px; }
+        .btn-next { background: #2980b9; color: white; margin-top: 20px; }
+        .btn:hover { opacity: 0.9; transform: translateY(-2px); }
+        .btn:disabled { background: #ccc; cursor: not-allowed; transform: none; opacity: 1; }
+
+        .ai-box { background: #fffdf5; border: 2px dashed #f39c12; padding: 15px; border-radius: 8px; margin-bottom: 20px; min-height: 60px; font-size: 15px; line-height: 1.6; }
+        .feedback-panel { background: #d4edda; border: 2px solid #28a745; padding: 25px; border-radius: 10px; text-align: center; }
+        .profit-show { font-size: 32px; color: #28a745; font-weight: bold; margin: 20px 0; }
+        .data-row { display: flex; justify-content: space-between; margin-bottom: 10px; border-bottom: 1px solid #c3e6cb; padding-bottom: 5px; }
+        .loading { color: #f39c12; font-weight: bold; display: flex; align-items: center; gap: 5px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>📰 报童决策实验 (AI 协同版)</h1>
+
+    <div id="setup-screen" style="text-align:center; padding: 50px 20px;">
+        <div style="background: #f8f9fa; padding: 30px; border-radius: 15px; display:inline-block; text-align:left; max-width: 600px;">
+            <h2 style="margin-top:0;">📝 实验说明</h2>
+            <p>欢迎参加。系统已自动为您分配代号：<strong id="auto-id-display" style="color:#2196f3;">...</strong></p>
+            <ul style="line-height: 1.8;">
+                <li><strong>产品售价 12 元，成本 3 元，残值 0 元。</strong></li>
+                <li>你需要进行 5 轮决策。</li>
+                <li>注意：若发生缺货，你只能看到产品卖光了，无法得知真实需求。</li>
+            </ul>
+            <div style="text-align: center; margin-top: 30px;">
+                <button class="btn btn-start" onclick="initGame()">🚀 开始实验</button>
+            </div>
+            <p id="init-error" style="color:red; font-size:14px; text-align:center;"></p>
+        </div>
+    </div>
+
+    <div id="game-screen" class="hidden game-layout">
+        <div class="sidebar">
+            <div class="params-box">
+                <p>💰 售价 (p): 12 元</p>
+                <p>📉 成本 (c): 3 元</p>
+                <p>♻️ 残值 (s): 0 元</p>
+            </div>
+            <h3>📜 历史销售记录</h3>
+            <div style="font-size:12px; color:#888; margin-bottom:10px;">* 红色标记表示当期售罄(缺货)</div>
+            <ul id="history-list" class="history-list"></ul>
+        </div>
+
+        <div class="main-area">
+            <div class="round-info">当前轮次：<span id="current-round-span" style="font-size:32px;">1</span> / 5</div>
+
+            <button id="btn-pre-ai" class="btn btn-ai" onclick="getPreAdvice()">🧠 点击咨询 DeepSeek 订货建议</button>
+            <div id="pre-ai-box" class="ai-box hidden"></div>
+
+            <div style="background: #f9f9f9; padding: 20px; border-radius: 10px; border: 1px solid #ddd;">
+                <label style="font-weight:bold; font-size:18px; display:block; margin-bottom:10px;">请做出本轮决策：</label>
+                <input type="number" id="order-quantity" placeholder="请输入订货量 (建议范围 0-300)">
+                <button id="btn-submit" class="btn btn-submit" onclick="submitDecision()">✅ 确认订货并提交</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="feedback-screen" class="hidden">
+        <div class="feedback-panel">
+            <h2>📊 第 <span id="fb-round-num"></span> 轮结果</h2>
+            <div style="text-align: left; margin: 20px 0;">
+                <div class="data-row"><span>📦 你的订货量：</span><strong id="fb-order"></strong></div>
+                <div class="data-row"><span>🛍️ 真实市场需求：</span><strong id="fb-demand" style="color:#c0392b;"></strong></div>
+                <div class="data-row"><span>🤝 实际销售量：</span><strong id="fb-sales"></strong></div>
+            </div>
+            <div class="profit-show">本轮收益：<span id="fb-profit"></span> 元</div>
+        </div>
+        
+        <div style="margin-top: 20px;">
+            <h3>🤖 AI 赛后复盘：</h3>
+            <div id="post-ai-box" class="ai-box"><span class="loading">⏳ DeepSeek 正在分析你的决策...</span></div>
+        </div>
+
+        <button class="btn btn-next" onclick="nextRound()">进入下一轮 ➡</button>
+    </div>
+
+    <div id="final-screen" class="hidden" style="text-align: center; padding-top: 50px;">
+        <h1 style="color:#28a745;">🎉 实验完成！</h1>
+        <p style="font-size: 24px; margin-top: 20px;">你的 5 轮总收益为：</p>
+        <div style="font-size: 60px; color: #d35400; font-weight: bold; margin: 20px 0;"><span id="total-profit-span"></span> 元</div>
+        <button class="btn btn-start" onclick="location.reload()">🔄 再来一次</button>
+    </div>
+
+</div>
+
+<script>
+    // ================= 配置区 =================
+    const supabaseUrl = 'https://adjvfvfbjfrtenvbocfw.supabase.co';
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFkanZmdmZiamZydGVudmJvY2Z3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYxMzAzNjEsImV4cCI6MjA4MTcwNjM2MX0.Fzd2LU2ueKg0V47NSC9nQY_5hHaFY8SqJuV281iXKag';
+    const deepSeekKey = 'sk-d5897c92a0134bf8b6d36ee19d30e782';
+    // ==========================================
+
+    // 自动生成代号
+    const autoId = 'User_' + Math.floor(Math.random() * 9000 + 1000);
+    document.getElementById('auto-id-display').innerText = autoId;
+
+    // 全局状态
+    const gameState = {
+        participantId: autoId,
+        currentRound: 0,
+        maxRounds: 5,
+        totalProfit: 0,
+        historyData: [],
+        currentOrder: 0,
+        currentTrueDemand: 0,
+        currentSales: 0,
+        currentProfit: 0,
+        preAiAdvice: '',
+        postAiAdvice: ''
+    };
+
+    // --- 核心函数1：初始化游戏 ---
+    function initGame() {
+        // 1. 检查 Supabase 库是否加载
+        if (typeof window.supabase === 'undefined') {
+            const err = "❌ 错误：Supabase 库未加载（可能是网络原因）。请刷新页面重试。";
+            document.getElementById('init-error').innerText = err;
+            alert(err);
+            return;
+        }
+
+        // 2. 生成 40 期历史数据 (删失逻辑)
+        gameState.historyData = [];
+        const historicalOrderCap = 180; 
+        for (let i = 0; i < 40; i++) {
+            const trueD = Math.floor(Math.random() * 301);
+            // 删失：只能看到 min(trueD, 180)
+            const sales = Math.min(trueD, historicalOrderCap);
+            gameState.historyData.push({
+                sales: sales,
+                stockout: trueD > historicalOrderCap
+            });
+        }
+
+        updateHistoryView();
+        gameState.currentRound = 1;
+        updateRoundDisplay();
+        switchScreen('game-screen');
+    }
+
+    // --- 核心函数2：获取 AI 建议 ---
+    async function getPreAdvice() {
+        if (typeof marked === 'undefined') { alert("Markdown 库未加载"); return; }
+        
+        const btn = document.getElementById('btn-pre-ai');
+        const aiBox = document.getElementById('pre-ai-box');
+        
+        aiBox.classList.remove('hidden');
+        aiBox.innerHTML = '<span class="loading">⏳ DeepSeek 正在分析...</span>';
+        btn.disabled = true;
+
+        const recentHistory = gameState.historyData.slice(-20).map((h, i) => 
+            `T-${20-i}:${h.sales}${h.stockout ? "(缺货)" : ""}`
+        ).join(", ");
+
+        const prompt = `你是一个供应链管理专家。报童决策实验：售价p=12，成本c=3，残值s=0。
+最近20期销售记录（存在数据删失，(缺货)代表真实需求可能更高）：[${recentHistory}]。
+请分析真实需求分布可能的情况，并给出一句简短的订货量建议（具体数字）。字数100字以内。`;
+
+        const reply = await callDeepSeek(prompt);
+        aiBox.innerHTML = marked.parse(reply);
+        gameState.preAiAdvice = reply;
+        btn.disabled = false;
+        btn.innerText = "🔄 重新咨询";
+    }
+
+    // --- 核心函数3：提交决策 ---
+    async function submitDecision() {
+        const orderInput = document.getElementById('order-quantity');
+        const Q = parseInt(orderInput.value);
+        if (isNaN(Q) || Q < 0) { alert("请输入有效的订货量！"); return; }
+        
+        const submitBtn = document.getElementById('btn-submit');
+        submitBtn.disabled = true;
+        submitBtn.innerText = "⏳ 结算中...";
+
+        // 结算
+        gameState.currentOrder = Q;
+        gameState.currentTrueDemand = Math.floor(Math.random() * 301);
+        gameState.currentSales = Math.min(Q, gameState.currentTrueDemand);
+        gameState.currentProfit = (12 * gameState.currentSales) - (3 * Q);
+        gameState.totalProfit += gameState.currentProfit;
+
+        // 更新界面
+        document.getElementById('fb-round-num').innerText = gameState.currentRound;
+        document.getElementById('fb-order').innerText = Q;
+        document.getElementById('fb-demand').innerText = gameState.currentTrueDemand;
+        document.getElementById('fb-sales').innerText = gameState.currentSales;
+        const profitSpan = document.getElementById('fb-profit');
+        profitSpan.innerText = gameState.currentProfit;
+        profitSpan.style.color = gameState.currentProfit >= 0 ? "#28a745" : "#c0392b";
+
+        switchScreen('feedback-screen');
+
+        // 并行：AI 复盘 + 存数据库
+        await getPostFeedback();
+        saveRoundData(); // 不await，后台存即可
+
+        document.querySelector('.btn-next').disabled = false;
+    }
+
+    // --- 核心函数4：赛后复盘 ---
+    async function getPostFeedback() {
+        const aiBox = document.getElementById('post-ai-box');
+        const prompt = `回顾这轮报童决策。参数 p=12, c=3。
+被试订货量 Q=${gameState.currentOrder}。真实随机需求 D=${gameState.currentTrueDemand}。本轮利润=${gameState.currentProfit}。
+请简短点评这次决策（过于保守还是激进？），并鼓励被试。80字以内。`;
+        const reply = await callDeepSeek(prompt);
+        aiBox.innerHTML = marked.parse(reply);
+        gameState.postAiAdvice = reply;
+    }
+
+    // --- 核心函数5：存数据 ---
+    async function saveRoundData() {
+        // 动态创建 Client 防止初始化报错
+        if (typeof window.supabase === 'undefined') return;
+        const client = window.supabase.createClient(supabaseUrl, supabaseKey);
+        
+        const { error } = await client.from('newsvendor_rounds').insert([{
+            participant_id: gameState.participantId,
+            round_num: gameState.currentRound,
+            order_q: gameState.currentOrder,
+            true_demand: gameState.currentTrueDemand,
+            sales: gameState.currentSales,
+            profit: gameState.currentProfit,
+            ai_pre_advice: gameState.preAiAdvice,
+            ai_post_feedback: gameState.postAiAdvice
+        }]);
+        if (error) console.error("Supabase Error:", error);
+    }
+
+    // --- 核心函数6：下一轮 ---
+    function nextRound() {
+        gameState.historyData.push({
+            sales: gameState.currentSales,
+            stockout: gameState.currentTrueDemand > gameState.currentOrder
+        });
+
+        if (gameState.currentRound >= gameState.maxRounds) {
+            document.getElementById('total-profit-span').innerText = gameState.totalProfit;
+            switchScreen('final-screen');
+        } else {
+            gameState.currentRound++;
+            updateHistoryView();
+            updateRoundDisplay();
+            
+            // 重置 UI
+            document.getElementById('order-quantity').value = '';
+            document.getElementById('pre-ai-box').classList.add('hidden');
+            document.getElementById('btn-pre-ai').disabled = false;
+            document.getElementById('btn-pre-ai').innerText = "🧠 点击咨询 DeepSeek 订货建议";
+            document.getElementById('btn-submit').disabled = false;
+            document.getElementById('btn-submit').innerText = "✅ 确认订货并提交";
+            document.getElementById('post-ai-box').innerHTML = '<span class="loading">⏳ DeepSeek 正在分析...</span>';
+            document.querySelector('.btn-next').disabled = true;
+            gameState.preAiAdvice = "";
+            gameState.postAiAdvice = "";
+            
+            switchScreen('game-screen');
+        }
+    }
+
+    // --- API 调用 ---
+    async function callDeepSeek(promptText) {
+        try {
+            const response = await fetch('https://api.deepseek.com/chat/completions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + deepSeekKey },
+                body: JSON.stringify({
+                    model: "deepseek-chat",
+                    messages: [{"role": "user", "content": promptText}],
+                    temperature: 1.1
+                })
+            });
+            const data = await response.json();
+            return data.choices && data.choices.length > 0 ? data.choices[0].message.content : "AI 暂时无响应";
+        } catch (e) { console.error(e); return "AI 连接失败"; }
+    }
+
+    // 辅助函数
+    function updateHistoryView() {
+        const list = document.getElementById('history-list');
+        list.innerHTML = ''; 
+        const recentData = gameState.historyData.slice().reverse().slice(0, 40);
+        recentData.forEach((item, index) => {
+            const li = document.createElement('li');
+            const label = (gameState.historyData.length - index) <= 40 ? "历史" : "实验";
+            li.innerHTML = `<span>[${label}] 销量: <strong>${item.sales}</strong></span> ${item.stockout ? '<span class="sold-out">售罄</span>' : ''}`;
+            list.appendChild(li);
+        });
+    }
+
+    function updateRoundDisplay() { document.getElementById('current-round-span').innerText = gameState.currentRound; }
+    function switchScreen(id) {
+        ['setup-screen', 'game-screen', 'feedback-screen', 'final-screen'].forEach(sid => document.getElementById(sid).classList.add('hidden'));
+        document.getElementById(id).classList.remove('hidden');
+    }
+</script>
+</body>
+</html>
