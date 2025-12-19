@@ -3,170 +3,326 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>英语口语测试原型</title>
+    <title>韩阿姨的英语小课堂</title>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
         body {
-            font-family: sans-serif;
-            text-align: center;
-            background-color: #f0f8ff;
+            font-family: 'Comic Sans MS', 'Verdana', sans-serif; /* 用一种看起来比较可爱的字体 */
+            background-color: #e0f7fa;
+            margin: 0;
             display: flex;
             flex-direction: column;
+            min-height: 100vh;
             align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
         }
+
+        /* 顶部标题栏 */
+        header {
+            background-color: #00bcd4;
+            color: white;
+            width: 100%;
+            padding: 15px 0;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        /* 主内容区域 */
+        main {
+            flex: 1; /* 撑开中间区域 */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        /* 卡片样式 */
         .card {
             background: white;
             padding: 30px;
-            border-radius: 20px;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+            border-radius: 25px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
             width: 90%;
-            max-width: 350px;
+            max-width: 400px;
+            text-align: center;
+            border: 4px solid #fff;
+            transition: 0.3s;
         }
-        .robot {
-            font-size: 80px;
-            margin-bottom: 10px;
+
+        /* 角色选择页面的按钮 */
+        .role-btn {
             display: block;
-        }
-        h1 {
-            font-size: 50px;
-            color: #333;
-            margin: 10px 0;
-        }
-        p {
-            color: #666;
-            margin-bottom: 20px;
-        }
-        .btn-group {
-            display: flex;
-            justify-content: space-around;
-        }
-        button {
-            padding: 15px 20px;
-            font-size: 16px;
+            width: 100%;
+            padding: 20px;
+            margin: 15px 0;
             border: none;
-            border-radius: 10px;
+            border-radius: 15px;
+            font-size: 20px;
             cursor: pointer;
-            transition: 0.2s;
-        }
-        .btn-listen {
-            background-color: #4facfe;
             color: white;
+            transition: transform 0.2s;
         }
-        .btn-speak {
-            background-color: #ff9a9e;
-            color: white;
-        }
-        button:active {
-            transform: scale(0.95);
-        }
-        #status {
-            margin-top: 20px;
+        .role-xiaojiu { background-color: #ff9800; } /* 橙色 */
+        .role-doudou { background-color: #2196f3; }  /* 蓝色 */
+        .role-btn:hover { transform: scale(1.05); }
+
+        /* 学习页面元素 */
+        .robot-icon { font-size: 80px; display: block; margin-bottom: 10px; animation: bounce 2s infinite; }
+        .word-en { font-size: 48px; color: #333; margin: 10px 0; font-weight: bold; }
+        .word-cn { font-size: 24px; color: #666; margin-bottom: 30px; }
+        
+        .action-btn {
+            padding: 15px 30px;
             font-size: 18px;
-            font-weight: bold;
-            min-height: 1.5em;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            margin: 5px;
+            color: white;
+            box-shadow: 0 4px 0 rgba(0,0,0,0.2);
         }
-        .status-listening { color: blue; }
-        .status-correct { color: green; }
-        .status-wrong { color: red; }
+        .btn-listen { background-color: #00bcd4; }
+        .btn-speak { background-color: #ff4081; }
+        .btn-next { background-color: #4caf50; display: none; margin-top: 20px; width: 80%; }
+
+        .status-text { margin-top: 20px; font-size: 18px; min-height: 24px; color: #555; }
+        .correct-msg { color: #4caf50; font-weight: bold; font-size: 22px; }
+
+        /* 底部版权 */
+        footer {
+            padding: 15px;
+            color: #7f8c8d;
+            font-size: 14px;
+            text-align: center;
+            background: rgba(255,255,255,0.6);
+            width: 100%;
+        }
+
+        /* 隐藏/显示控制 */
+        .hidden { display: none !important; }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
     </style>
 </head>
 <body>
 
-    <div class="card">
-        <span class="robot">🤖</span>
-        <h1 id="word-display">Hello</h1>
-        <p>你好</p>
+    <header>
+        <h2>🔤 快乐学英语</h2>
+    </header>
 
-        <div class="btn-group">
-            <button class="btn-listen" onclick="robotSpeak()">👂 听示范 (2遍)</button>
-            <button class="btn-speak" onclick="startListening()">🎤 我来读</button>
+    <main>
+        <div id="select-screen" class="card">
+            <h2>谁来学习呀？</h2>
+            <button class="role-btn role-xiaojiu" onclick="startGame('xiaojiu')">
+                👦 我是小九<br><span style="font-size:14px">(一年级)</span>
+            </button>
+            <button class="role-btn role-doudou" onclick="startGame('doudou')">
+                🧑‍🎓 我是斗斗<br><span style="font-size:14px">(六年级)</span>
+            </button>
         </div>
 
-        <div id="status">准备就绪...</div>
-    </div>
+        <div id="study-screen" class="card hidden">
+            <span class="robot-icon">🤖</span>
+            <div class="word-en" id="display-word">Apple</div>
+            <div class="word-cn" id="display-cn">苹果</div>
+
+            <div>
+                <button class="action-btn btn-listen" onclick="playAudio()">👂 听2遍</button>
+                <button class="action-btn btn-speak" onclick="startRecord()">🎤 我来读</button>
+            </div>
+
+            <div id="status-box" class="status-text">请先听机器人读一遍哦~</div>
+
+            <button id="next-btn" class="action-btn btn-next" onclick="nextWord()">✨太棒了！下一个 ➡</button>
+            
+            <div style="margin-top: 20px;">
+                <button onclick="goHome()" style="background:none; border:none; color:#999; cursor:pointer; text-decoration:underline;">⬅ 返回选角色</button>
+            </div>
+        </div>
+        
+        <div id="finish-screen" class="card hidden">
+            <h1>🎉 太厉害了！</h1>
+            <p>今天的单词全都学会啦！</p>
+            <button class="role-btn role-xiaojiu" onclick="goHome()">再玩一次</button>
+        </div>
+    </main>
+
+    <footer>
+        ❤ 这是韩阿姨为斗斗和小九做的
+    </footer>
 
     <script>
-        // 当前要测试的单词
-        const currentWord = "Hello";
-        const statusBox = document.getElementById('status');
+        // --- 1. 数据准备 ---
+        // 小九的单词库 (一年级难度)
+        const wordsXiaoJiu = [
+            { en: "Apple", cn: "苹果" },
+            { en: "Cat", cn: "猫" },
+            { en: "Dog", cn: "狗" },
+            { en: "Red", cn: "红色" },
+            { en: "Book", cn: "书" }
+        ];
 
-        // --- 功能1：让浏览器说话 (TTS) ---
-        function robotSpeak() {
-            if (!window.speechSynthesis) {
-                alert("你的浏览器不支持朗读功能，请换Chrome试试。");
-                return;
+        // 斗斗的单词库 (六年级难度)
+        const wordsDouDou = [
+            { en: "Robot", cn: "机器人" },
+            { en: "Science", cn: "科学" },
+            { en: "History", cn: "历史" },
+            { en: "Planet", cn: "行星" },
+            { en: "Create", cn: "创造" }
+        ];
+
+        // --- 2. 状态管理 ---
+        let currentList = [];
+        let currentIndex = 0;
+        let isSpeaking = false; // 防止重复点击
+
+        // --- 3. 核心功能函数 ---
+
+        // 开始游戏，初始化
+        function startGame(role) {
+            if (role === 'xiaojiu') {
+                currentList = wordsXiaoJiu;
+            } else {
+                currentList = wordsDouDou;
             }
-
-            // 创建一个“话语”对象
-            const utterance = new SpeechSynthesisUtterance(currentWord);
-            utterance.lang = 'en-US'; // 美式发音
-            utterance.rate = 0.8;     // 语速稍微慢一点，适合小朋友
-
-            statusBox.innerText = "🤖 正在朗读...";
+            currentIndex = 0; // 重置到第一个词
             
-            // 读第一遍
-            window.speechSynthesis.speak(utterance);
-            
-            // 读第二遍 (中间稍微停顿一下)
-            // 实际上连续调用speak，浏览器会自动排队播放
-            setTimeout(() => {
-                 window.speechSynthesis.speak(utterance);
-            }, 1000); // 间隔1秒再读一次
+            // 切换界面
+            document.getElementById('select-screen').classList.add('hidden');
+            document.getElementById('finish-screen').classList.add('hidden');
+            document.getElementById('study-screen').classList.remove('hidden');
+
+            loadWord();
         }
 
-        // --- 功能2：听用户说话 (STT) ---
-        // 兼容性处理：Chrome用webkitSpeechRecognition
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        // 加载当前单词到屏幕
+        function loadWord() {
+            const item = currentList[currentIndex];
+            document.getElementById('display-word').innerText = item.en;
+            document.getElementById('display-cn').innerText = item.cn;
+            
+            // 重置状态
+            document.getElementById('status-box').innerText = "请点击“听2遍”";
+            document.getElementById('status-box').className = "status-text";
+            document.getElementById('next-btn').style.display = 'none'; // 隐藏下一题按钮
+        }
 
-        function startListening() {
+        // 机器人读两遍
+        function playAudio() {
+            if (isSpeaking) return;
+            
+            const word = currentList[currentIndex].en;
+            const utterance = new SpeechSynthesisUtterance(word);
+            utterance.lang = 'en-US';
+            utterance.rate = 0.8; 
+
+            isSpeaking = true;
+            document.getElementById('status-box').innerText = "🎧 正在播放...";
+
+            // 读第1遍
+            window.speechSynthesis.speak(utterance);
+            
+            // 读第2遍 (稍微延迟一点点，利用队列)
+            const utterance2 = new SpeechSynthesisUtterance(word);
+            utterance2.lang = 'en-US';
+            utterance2.rate = 0.8;
+            
+            // 这里加个小停顿的技巧：让它读一个空的短语，或者直接利用浏览器的队列机制
+            // 为了更自然，我们手动用setTimeout
+            setTimeout(() => {
+                window.speechSynthesis.speak(utterance2);
+                isSpeaking = false;
+                document.getElementById('status-box').innerText = "🎤 该你读啦！点“我来读”";
+            }, 1200);
+        }
+
+        // 听写功能
+        function startRecord() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             if (!SpeechRecognition) {
-                statusBox.innerText = "⚠️ 浏览器不支持语音识别";
-                alert("抱歉，你的浏览器不支持语音识别。请使用电脑版 Chrome 或安卓手机 Chrome。");
+                alert("抱歉，请用电脑Chrome浏览器或安卓手机体验语音功能。");
                 return;
             }
 
             const recognition = new SpeechRecognition();
-            recognition.lang = 'en-US'; // 识别英语
-            recognition.interimResults = false; // 不需要中间结果，只要最终结果
-            recognition.maxAlternatives = 1;
-
+            recognition.lang = 'en-US';
             recognition.start();
 
-            // 开始听的时候
             recognition.onstart = function() {
-                statusBox.innerText = "🎤 正在听，请大声读...";
-                statusBox.className = "status-listening";
+                document.getElementById('status-box').innerText = "👂 正在听，请大声读...";
+                document.getElementById('status-box').style.color = "blue";
             };
 
-            // 听到了结果
             recognition.onresult = function(event) {
-                const heardWord = event.results[0][0].transcript;
-                statusBox.innerText = "我听到了: " + heardWord;
-                
-                // 去掉标点和空格，转成小写来比较
-                const cleanHeard = heardWord.trim().toLowerCase().replace(/[^a-zA-Z]/g, "");
-                const cleanTarget = currentWord.toLowerCase();
+                const spoken = event.results[0][0].transcript;
+                const target = currentList[currentIndex].en;
 
-                if (cleanHeard === cleanTarget) {
-                    statusBox.innerText = "🎉 读对啦！(" + heardWord + ")";
-                    statusBox.className = "status-correct";
-                    // 这里以后可以加撒花
+                // 简单的清理比较 (忽略大小写和标点)
+                const cleanSpoken = spoken.trim().toLowerCase().replace(/[^a-z]/g, '');
+                const cleanTarget = target.trim().toLowerCase().replace(/[^a-z]/g, '');
+
+                if (cleanSpoken === cleanTarget) {
+                    // 答对了！
+                    document.getElementById('status-box').innerHTML = "<span class='correct-msg'>🎉 读对啦！(" + spoken + ")</span>";
+                    document.getElementById('next-btn').style.display = 'inline-block'; // 显示下一题按钮
+                    
+                    // 撒花
+                    fireConfetti();
                 } else {
-                    statusBox.innerText = "❌ 没听清，是 " + heardWord + " 吗？再试一次！";
-                    statusBox.className = "status-wrong";
+                    // 答错了
+                    document.getElementById('status-box').innerText = "❌ 没听清，好像读成了 " + spoken + "，再试一次？";
+                    document.getElementById('status-box').style.color = "red";
                 }
             };
+        }
 
-            // 听写结束或出错
-            recognition.onerror = function(event) {
-                statusBox.innerText = "⚠️ 出错了: " + event.error;
-            };
-            
-            recognition.onspeechend = function() {
-                 // 停止说话后，稍微等一会再显示状态，避免闪烁
+        // 下一个单词
+        function nextWord() {
+            currentIndex++;
+            if (currentIndex >= currentList.length) {
+                // 学完了！
+                document.getElementById('study-screen').classList.add('hidden');
+                document.getElementById('finish-screen').classList.remove('hidden');
+                fireConfetti(); // 再撒一次花
+            } else {
+                loadWord();
             }
+        }
+
+        // 返回首页
+        function goHome() {
+            document.getElementById('study-screen').classList.add('hidden');
+            document.getElementById('finish-screen').classList.add('hidden');
+            document.getElementById('select-screen').classList.remove('hidden');
+        }
+
+        // 撒花工具函数
+        function fireConfetti() {
+            var duration = 2 * 1000;
+            var end = Date.now() + duration;
+
+            (function frame() {
+                confetti({
+                    particleCount: 5,
+                    angle: 60,
+                    spread: 55,
+                    origin: { x: 0 }
+                });
+                confetti({
+                    particleCount: 5,
+                    angle: 120,
+                    spread: 55,
+                    origin: { x: 1 }
+                });
+
+                if (Date.now() < end) {
+                    requestAnimationFrame(frame);
+                }
+            }());
         }
     </script>
 </body>
